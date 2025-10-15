@@ -19,6 +19,11 @@ from urllib.parse import unquote
 import datetime
 import json
 
+import numpy as np
+from scipy.io.wavfile import write as write_wav
+
+AUDIO_BUFFER = []   # list of numpy arrays
+
 SAMPLE_RATE = 16000
 CHUNK_SECONDS = 3
 # DEVICE_INDEX = None   # None = default input; set to loopback device if you want system audio
@@ -34,6 +39,7 @@ live_transcript = []  # global list to hold timestamped text
 def _audio_callback(indata, frames, time_info, status):
     # called by sounddevice whenever new audio arrives
     _audio_q.put(indata.copy())
+    AUDIO_BUFFER.append(indata.copy())  # keep for saving later
 
 def _transcribe_worker():
     """Continuously pull audio from the queue and transcribe it."""
@@ -106,14 +112,28 @@ def start_audio_streamer():
     threading.Thread(target=_capture_loop, daemon=True).start()
 
 @app.on_event("shutdown")
-def save_transcript_on_shutdown():
-    if not live_transcript:
+def save_transcript_and_audio_on_shutdown():
+
+    if not live_transcript and not AUDIO_BUFFER:
+        print("Nothing to save.")
         return
+
     timestamp = datetime.datetime.now().isoformat(timespec='seconds').replace(":", "-")
-    filename = f"transcript_live_{timestamp}.json"
-    with open(filename, "w", encoding="utf-8") as f:
-        json.dump(live_transcript, f, ensure_ascii=False, indent=2)
-    print(f"💾 Transcript saved to {filename}")
+    base = f"{timestamp}"
+
+    # --- Save transcript ---
+    if live_transcript:
+        filename = f"transcript_live_{base}.json"
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump(live_transcript, f, ensure_ascii=False, indent=2)
+        print(f"💾 Transcript saved to {filename}")
+
+    # --- Save audio ---
+    if AUDIO_BUFFER:
+        audio_data = np.concatenate(AUDIO_BUFFER, axis=0)
+        audio_file = f"audio_live_{base}.wav"
+        write_wav(audio_file, 16000, audio_data)   # 16000 = sample rate
+        print(f"🎧 Audio saved to {audio_file}")
 
 client = OpenAI()  # uses your OPENAI_API_KEY env variable
 # Allow requests from local browser
