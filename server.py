@@ -16,7 +16,7 @@ import numpy as np
 import whisper
 from fastapi import Query
 from urllib.parse import unquote
-import datetime
+from datetime import datetime
 import json
 
 import numpy as np
@@ -56,7 +56,7 @@ def _transcribe_worker():
                 result = _whisper_model.transcribe(segment, fp16=False)
                 text = result["text"].strip()
                 if text:
-                    ts = datetime.datetime.now().isoformat(timespec='seconds')
+                    ts = datetime.now().isoformat(timespec='seconds')
                     entry = {"timestamp": ts, "text": text}
                     live_transcript.append(entry)
                     print(f"[{ts}] {text}")
@@ -82,28 +82,22 @@ app = FastAPI()
 whisper_model = whisper.load_model("small")  # good balance for CPU-only
 
 @app.get("/live")
-def get_live(since: str = Query(None, description="ISO timestamp to get entries after")):
-    """
-    Return transcript entries after a given timestamp.
-    Example: /live?since=2025-10-15T12:58:42
-    """
+def get_live(since: str = None):
     try:
         if since:
-            # decode URL encoding first
             since_decoded = unquote(since)
-            # ensure it's an ISO datetime
-            since_dt = datetime.fromisoformat(since_decoded)
+            # Accept timestamps like "2025-10-15T12:58:42"
+            since_dt = datetime.strptime(since_decoded, "%Y-%m-%dT%H:%M:%S")
             filtered = [
                 t for t in live_transcript
-                if datetime.fromisoformat(t["timestamp"]) > since_dt
+                if datetime.strptime(t["timestamp"], "%Y-%m-%dT%H:%M:%S") > since_dt
             ]
             return {"segments": filtered}
         else:
-            # default to last 100 if no timestamp given
             return {"segments": live_transcript[-100:]}
     except Exception as e:
         print("Error parsing 'since':", e)
-        return {"error": f"Invalid 'since' value: {since}"}
+        return {"error": "Invalid 'since' format. Expected YYYY-MM-DDTHH:MM:SS"}
 
 @app.on_event("startup")
 def start_audio_streamer():
@@ -118,7 +112,7 @@ def save_transcript_and_audio_on_shutdown():
         print("Nothing to save.")
         return
 
-    timestamp = datetime.datetime.now().isoformat(timespec='seconds').replace(":", "-")
+    timestamp = datetime.now().isoformat(timespec='seconds').replace(":", "-")
     base = f"{timestamp}"
 
     # --- Save transcript ---

@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from "react";
 import Transcript from "./components/Transcript";
-import UploadForm from "./components/UploadForm";
 import { fetchLive } from "./api";
 
 function App() {
   const [segments, setSegments] = useState([]);
   const [lastTimestamp, setLastTimestamp] = useState(null);
 
-  // Poll /live endpoint every 3 seconds
+  // Poll live transcript periodically
   useEffect(() => {
     const interval = setInterval(async () => {
       try {
@@ -27,7 +26,9 @@ function App() {
   return (
     <div style={{ margin: "2rem", fontFamily: "system-ui" }}>
       <h2>🎙 Live Transcript Viewer</h2>
-      <UploadForm setSegments={setSegments} />
+      <p style={{ color: "#555" }}>
+        Automatically displaying new transcription lines from your running Whisper backend.
+      </p>
       <Transcript segments={segments} />
     </div>
   );

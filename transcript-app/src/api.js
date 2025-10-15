@@ -17,14 +17,3 @@ export async function askAI(question) {
   if (!res.ok) throw new Error("AI request failed");
   return await res.json();
 }
-
-export async function uploadAudio(file) {
-  const formData = new FormData();
-  formData.append("file", file);
-  const res = await fetch(`${API_BASE}/transcribe`, {
-    method: "POST",
-    body: formData,
-  });
-  if (!res.ok) throw new Error("Upload failed");
-  return await res.json();
-}
