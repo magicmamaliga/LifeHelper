@@ -5,8 +5,8 @@ from openai import OpenAI
 import whisper
 import tempfile
 import os
-
-
+import soundfile as sf
+import io
 
 import threading
 import time
@@ -18,8 +18,10 @@ from fastapi import Query
 from urllib.parse import unquote
 from datetime import datetime
 import json
+from contextlib import asynccontextmanager
 
 import numpy as np
+import whisperCppWrapper as whisper_cpp
 from scipy.io.wavfile import write as write_wav
 
 AUDIO_BUFFER = []   # list of numpy arrays
@@ -41,29 +43,112 @@ def _audio_callback(indata, frames, time_info, status):
     _audio_q.put(indata.copy())
     AUDIO_BUFFER.append(indata.copy())  # keep for saving later
 
+
+SAMPLE_RATE = 16000          # Hz
+CHUNK_DURATION = 0.5         # seconds per callback push (depends on your stream)
+TARGET_DURATION = 5.0        # seconds per transcription window
+
+def collect_audio_chunk(timeout=TARGET_DURATION + 2.0):
+    """
+    Collect roughly TARGET_DURATION seconds of audio from the _audio_q queue.
+
+    Returns:
+        np.ndarray: mono float32 samples normalized to -1.0..1.0
+    """
+    frames = []
+    start_time = time.time()
+
+    while True:
+        try:
+            data = _audio_q.get(timeout=0.5)
+            frames.append(data)
+        except queue.Empty:
+            pass  # no data yet
+
+        # if we've gathered enough time or exceeded timeout
+        total_seconds = len(frames) * CHUNK_DURATION
+        if total_seconds >= TARGET_DURATION or (time.time() - start_time) > timeout:
+            break
+
+    if not frames:
+        return np.zeros((int(SAMPLE_RATE * TARGET_DURATION), 1), dtype=np.float32)
+
+    # concatenate all frames into one array
+    audio_chunk = np.concatenate(frames, axis=0)
+
+    # if stereo, take only the first channel
+    if audio_chunk.ndim > 1:
+        audio_chunk = audio_chunk[:, 0:1]
+
+    return audio_chunk
+
+# def _transcribe_worker():
+#     """Continuously pull audio from the queue and transcribe it."""
+#     print("🔊 Audio capture thread started.")
+#     buffer = np.zeros((0, 1), dtype=np.float32)
+#     chunk_samples = SAMPLE_RATE * CHUNK_SECONDS
+#     while True:
+#         try:
+#             data = _audio_q.get(timeout=1)
+#             buffer = np.concatenate((buffer, data))
+#             if len(buffer) >= chunk_samples:
+#                 segment = np.squeeze(buffer[:chunk_samples])
+#                 buffer = buffer[chunk_samples:]
+#                 result = _whisper_model.transcribe(segment, fp16=False)
+#                 text = result["text"].strip()
+#                 if text:
+#                     ts = datetime.now().isoformat(timespec='seconds')
+#                     entry = {"timestamp": ts, "text": text}
+#                     live_transcript.append(entry)
+#                     print(f"[{ts}] {text}")
+#         except queue.Empty:
+#             continue
+
+
 def _transcribe_worker():
-    """Continuously pull audio from the queue and transcribe it."""
+    """Continuously pull audio from the queue and transcribe it with whisper.cpp."""
     print("🔊 Audio capture thread started.")
     buffer = np.zeros((0, 1), dtype=np.float32)
     chunk_samples = SAMPLE_RATE * CHUNK_SECONDS
+
     while True:
         try:
             data = _audio_q.get(timeout=1)
             buffer = np.concatenate((buffer, data))
+
+            # once enough audio is accumulated → transcribe
             if len(buffer) >= chunk_samples:
                 segment = np.squeeze(buffer[:chunk_samples])
-                buffer = buffer[chunk_samples:]
-                result = _whisper_model.transcribe(segment, fp16=False)
-                text = result["text"].strip()
+                buffer = buffer[chunk_samples:]  # keep remainder
+
+                # convert numpy array → WAV bytes
+                wav_buf = io.BytesIO()
+                sf.write(wav_buf, segment, SAMPLE_RATE, format="WAV")
+                wav_data = wav_buf.getvalue()
+
+                # call whisper.cpp binary
+                text = whisper_cpp.transcribe_with_whisper_cpp(wav_data)
+
+                 # --- FILTERING LOGIC ---
+                if not text:
+                    continue  # skip empty output
+                if text in ("[BLANK_AUDIO]", "[BLANK]", "(silence)", "[ Silence ]"):
+                    continue  # skip placeholder tags
+                if text.lower() in ("you", "uh", "ah", "a", "hmm"):
+                    continue  # skip filler syllables
+
+                # --- If passed all filters, append ---
+
                 if text:
                     ts = datetime.now().isoformat(timespec='seconds')
                     entry = {"timestamp": ts, "text": text}
                     live_transcript.append(entry)
                     print(f"[{ts}] {text}")
+
         except queue.Empty:
+            # no new audio right now, just wait
+            time.sleep(0.05)
             continue
-
-
 
 def _capture_loop():
     with sd.InputStream(
@@ -99,13 +184,30 @@ def get_live(since: str = None):
         print("Error parsing 'since':", e)
         return {"error": "Invalid 'since' format. Expected YYYY-MM-DDTHH:MM:SS"}
 
-@app.on_event("startup")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # --- Startup actions ---
+    print("🚀 FastAPI starting up...")
+    
+    # (You can start your background audio capture thread here if needed)
+    start_audio_streamer()
+
+    yield  # ⬅️ app runs between startup and shutdown
+
+    save_transcript_and_audio_on_shutdown()
+
+    print("👋 FastAPI shutting down...")
+
+# Create app with lifespan
+app = FastAPI(lifespan=lifespan)
+
 def start_audio_streamer():
     """Start both the capture stream and the transcription thread."""
     threading.Thread(target=_transcribe_worker, daemon=True).start()
     threading.Thread(target=_capture_loop, daemon=True).start()
 
-@app.on_event("shutdown")
 def save_transcript_and_audio_on_shutdown():
 
     if not live_transcript and not AUDIO_BUFFER:
@@ -137,29 +239,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-
-@app.post("/transcribe")
-async def transcribe_audio(file: UploadFile = File(...)):
-    # Save temp file
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp:
-        tmp.write(await file.read())
-        tmp_path = tmp.name
-
-    # Transcribe
-    result = whisper_model.transcribe(tmp_path, fp16=False)
-    os.remove(tmp_path)
-
-    # Build response (keep only text + segments)
-    response = {
-        "text": result["text"].strip(),
-        "segments": [
-            {"start": seg["start"], "end": seg["end"], "text": seg["text"].strip()}
-            for seg in result["segments"]
-        ],
-    }
-    return response
-
 
 @app.post("/ask")
 async def ask_ai(request: Request):
