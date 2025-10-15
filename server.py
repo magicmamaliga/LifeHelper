@@ -15,7 +15,9 @@ import sounddevice as sd
 import numpy as np
 import whisper
 from fastapi import Query
-from datetime import datetime
+from urllib.parse import unquote
+import datetime
+import json
 
 SAMPLE_RATE = 16000
 CHUNK_SECONDS = 3
@@ -77,17 +79,25 @@ whisper_model = whisper.load_model("small")  # good balance for CPU-only
 def get_live(since: str = Query(None, description="ISO timestamp to get entries after")):
     """
     Return transcript entries after a given timestamp.
-    Example: /live?since=2025-10-14T19:30:00
+    Example: /live?since=2025-10-15T12:58:42
     """
-    if since:
-        try:
-            since_dt = datetime.fromisoformat(since)
-            filtered = [t for t in live_transcript if datetime.fromisoformat(t["timestamp"]) > since_dt]
-        except ValueError:
-            return {"error": "Invalid timestamp format. Use ISO format: YYYY-MM-DDTHH:MM:SS"}
-        return {"segments": filtered}
-    else:
-        return {"segments": live_transcript[-100:]}  # default fallback
+    try:
+        if since:
+            # decode URL encoding first
+            since_decoded = unquote(since)
+            # ensure it's an ISO datetime
+            since_dt = datetime.fromisoformat(since_decoded)
+            filtered = [
+                t for t in live_transcript
+                if datetime.fromisoformat(t["timestamp"]) > since_dt
+            ]
+            return {"segments": filtered}
+        else:
+            # default to last 100 if no timestamp given
+            return {"segments": live_transcript[-100:]}
+    except Exception as e:
+        print("Error parsing 'since':", e)
+        return {"error": f"Invalid 'since' value: {since}"}
 
 @app.on_event("startup")
 def start_audio_streamer():

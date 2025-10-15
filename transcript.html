@@ -3,12 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Transcript Viewer – Upload + AI</title>
+  <title>Transcript Viewer – Live Polling</title>
   <style>
     body {
       font-family: system-ui, sans-serif;
       margin: 2rem;
-      line-height: 1.6;
       background: #fafafa;
     }
     .segment {
@@ -27,11 +26,11 @@
       margin-bottom: 1.5rem;
       border-radius: 10px;
     }
-    #transcript { display: none; } /* hidden until transcript loaded */
+    #status { color: #555; }
   </style>
 </head>
 <body>
-  <h2>🎙 Transcript Viewer</h2>
+  <h2>🎙 Live Transcript Viewer</h2>
 
   <div id="upload-box">
     <form id="uploadForm">
@@ -47,13 +46,14 @@
   <script>
     const API_TRANSCRIBE = "http://127.0.0.1:8000/transcribe";
     const API_ASK = "http://127.0.0.1:8000/ask";
+    const API_LIVE = "http://127.0.0.1:8000/live";
 
-    const uploadForm = document.getElementById("uploadForm");
     const transcriptDiv = document.getElementById("transcript");
     const statusP = document.getElementById("status");
+    let lastTimestamp = null;
 
-    // 1️⃣ Upload and transcribe audio
-    uploadForm.addEventListener("submit", async (e) => {
+    // --- Upload form (manual transcription option) ---
+    document.getElementById("uploadForm").addEventListener("submit", async (e) => {
       e.preventDefault();
       const fileInput = document.getElementById("audioFile");
       if (!fileInput.files.length) return alert("Please choose an audio file first.");
@@ -74,19 +74,20 @@
       }
     });
 
-    // 2️⃣ Render transcript dynamically
+    // --- Render transcript array ---
     function renderTranscript(segments) {
-      transcriptDiv.innerHTML = "";
-      transcriptDiv.style.display = "block";
-      segments.forEach(seg => {
-        const div = document.createElement("div");
-        div.className = "segment";
-        div.innerHTML = `<span class="timestamp">[${seg.start.toFixed(1)}–${seg.end.toFixed(1)}]</span>${seg.text}`;
-        transcriptDiv.appendChild(div);
-      });
+      segments.forEach(seg => addSegment(seg));
     }
 
-    // 3️⃣ Detect text selection → send to AI
+    function addSegment(seg) {
+      const div = document.createElement("div");
+      div.className = "segment";
+      div.innerHTML = `<span class="timestamp">[${seg.timestamp || seg.start?.toFixed(1) || ""}]</span>${seg.text}`;
+      transcriptDiv.appendChild(div);
+      transcriptDiv.scrollTop = transcriptDiv.scrollHeight; // auto-scroll
+    }
+
+    // --- Highlight selection and ask AI ---
     document.addEventListener("mouseup", async () => {
       const selection = window.getSelection().toString().trim();
       if (!selection) return;
@@ -105,6 +106,30 @@
         alert("Error contacting backend: " + err.message);
       }
     });
+
+    // --- Live polling ---
+    async function pollLiveTranscript() {
+      try {
+        let url = API_LIVE;
+        if (lastTimestamp) url += `?since=${encodeURIComponent(lastTimestamp)}`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Failed to fetch live transcript");
+        const data = await res.json();
+        const newSegs = data.segments || [];
+
+        if (newSegs.length > 0) {
+          newSegs.forEach(addSegment);
+          lastTimestamp = newSegs[newSegs.length - 1].timestamp;
+        }
+      } catch (err) {
+        console.error("Polling error:", err.message);
+      } finally {
+        setTimeout(pollLiveTranscript, 3000); // poll every 3 seconds
+      }
+    }
+
+    // Start live polling automatically
+    pollLiveTranscript();
   </script>
 </body>
 </html>
