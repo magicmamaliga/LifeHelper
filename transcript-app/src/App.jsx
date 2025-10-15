@@ -19,7 +19,7 @@ function App() {
       } catch (err) {
         console.error("Polling error:", err);
       }
-    }, 3000);
+    }, 1000);
     return () => clearInterval(interval);
   }, [lastTimestamp]);
 
