@@ -198,19 +198,19 @@ async def ask_ai(request: Request):
     if not question.strip():
         return {"answer": "(No question text received)"}
 
-    return {"answer": "Hello from FastAPI! This is a placeholder response."}
+    # return {"answer": "Hello from FastAPI! This is a placeholder response."}
 
     # Call OpenAI model (you can change to gpt-4o, etc.)
-    # completion = client.chat.completions.create(
-    #     model="gpt-4o-mini",
-    #     messages=[
-    #         {"role": "system", "content": "You are an assistant answering transcript-related questions."},
-    #         {"role": "user", "content": question}
-    #     ]
-    # )
+    completion = client.chat.completions.create(
+        model="gpt-5-mini",
+        messages=[
+            {"role": "system", "content": "You are acting as you are on a JAVA interview. Answer as you would in real life. Be concise."},
+            {"role": "user", "content": question}
+        ]
+    )
 
-    # answer = completion.choices[0].message.content
-    # return {"answer": answer}
+    answer = completion.choices[0].message.content
+    return {"answer": answer}
 
 if __name__ == "__main__":
     import uvicorn
