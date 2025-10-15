@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Transcript Viewer – Stage 1</title>
+  <title>Transcript Viewer – Upload + AI</title>
   <style>
     body {
       font-family: system-ui, sans-serif;
@@ -18,64 +18,93 @@
       background: #fff;
       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
     }
-    .segment:hover {
-      background: #f0f8ff;
+    .segment:hover { background: #f0f8ff; }
+    .timestamp { color: #888; font-size: 0.9em; margin-right: 0.5rem; }
+    #upload-box {
+      background: #fff;
+      border: 2px dashed #aaa;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border-radius: 10px;
     }
-    .timestamp {
-      color: #888;
-      font-size: 0.9em;
-      margin-right: 0.5rem;
-    }
+    #transcript { display: none; } /* hidden until transcript loaded */
   </style>
 </head>
 <body>
-  <h2>Transcript Viewer – Stage 1</h2>
+  <h2>🎙 Transcript Viewer</h2>
+
+  <div id="upload-box">
+    <form id="uploadForm">
+      <label>Choose an audio file:</label>
+      <input type="file" id="audioFile" accept=".wav,.mp3,.m4a" required />
+      <button type="submit">Transcribe</button>
+    </form>
+    <p id="status"></p>
+  </div>
+
   <div id="transcript"></div>
 
   <script>
-  const API_URL = "http://127.0.0.1:8000/ask";
+    const API_TRANSCRIBE = "http://127.0.0.1:8000/transcribe";
+    const API_ASK = "http://127.0.0.1:8000/ask";
 
-  // Sample transcript data
-  const transcript = [
-    { start: "00:00", end: "00:03", text: "Hello everyone, welcome to the meeting." },
-    { start: "00:03", end: "00:07", text: "Today we will discuss the project timeline." },
-    { start: "00:07", end: "00:10", text: "Let's start with last week's updates." },
-  ];
+    const uploadForm = document.getElementById("uploadForm");
+    const transcriptDiv = document.getElementById("transcript");
+    const statusP = document.getElementById("status");
 
-  const container = document.getElementById("transcript");
-  transcript.forEach(seg => {
-    const div = document.createElement("div");
-    div.className = "segment";
-    div.innerHTML = `<span class="timestamp">[${seg.start}–${seg.end}]</span>${seg.text}`;
-    container.appendChild(div);
-  });
+    // 1️⃣ Upload and transcribe audio
+    uploadForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fileInput = document.getElementById("audioFile");
+      if (!fileInput.files.length) return alert("Please choose an audio file first.");
 
-  // Detect selection and send to backend
-  document.addEventListener("mouseup", async () => {
-    const selection = window.getSelection().toString().trim();
-    if (!selection) return;
+      const formData = new FormData();
+      formData.append("file", fileInput.files[0]);
+      statusP.textContent = "⏳ Transcribing locally... please wait.";
 
-    // Basic feedback
-    const userConfirm = confirm(`Send to AI?\n\n"${selection}"`);
-    if (!userConfirm) return;
+      try {
+        const res = await fetch(API_TRANSCRIBE, { method: "POST", body: formData });
+        if (!res.ok) throw new Error("Server error during transcription.");
+        const data = await res.json();
+        statusP.textContent = "✅ Transcription complete!";
+        renderTranscript(data.segments);
+      } catch (err) {
+        statusP.textContent = "❌ " + err.message;
+        console.error(err);
+      }
+    });
 
-    try {
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ question: selection }),
+    // 2️⃣ Render transcript dynamically
+    function renderTranscript(segments) {
+      transcriptDiv.innerHTML = "";
+      transcriptDiv.style.display = "block";
+      segments.forEach(seg => {
+        const div = document.createElement("div");
+        div.className = "segment";
+        div.innerHTML = `<span class="timestamp">[${seg.start.toFixed(1)}–${seg.end.toFixed(1)}]</span>${seg.text}`;
+        transcriptDiv.appendChild(div);
       });
-
-      if (!response.ok) throw new Error("Server error");
-      const data = await response.json();
-      const answer = data.answer || "(No answer)";
-      alert("AI says:\n\n" + answer);
-    } catch (err) {
-      alert("Error contacting backend: " + err.message);
-      console.error(err);
     }
-  });
-</script>
 
+    // 3️⃣ Detect text selection → send to AI
+    document.addEventListener("mouseup", async () => {
+      const selection = window.getSelection().toString().trim();
+      if (!selection) return;
+      const confirmSend = confirm(`Send to AI?\n\n"${selection}"`);
+      if (!confirmSend) return;
+
+      try {
+        const res = await fetch(API_ASK, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question: selection }),
+        });
+        const data = await res.json();
+        alert("AI says:\n\n" + data.answer);
+      } catch (err) {
+        alert("Error contacting backend: " + err.message);
+      }
+    });
+  </script>
 </body>
 </html>
