@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Transcript Viewer – Stage 1</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 2rem;
+      line-height: 1.6;
+      background: #fafafa;
+    }
+    .segment {
+      margin-bottom: 0.75rem;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    }
+    .segment:hover {
+      background: #f0f8ff;
+    }
+    .timestamp {
+      color: #888;
+      font-size: 0.9em;
+      margin-right: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <h2>Transcript Viewer – Stage 1</h2>
+  <div id="transcript"></div>
+
+  <script>
+  const API_URL = "http://127.0.0.1:8000/ask";
+
+  // Sample transcript data
+  const transcript = [
+    { start: "00:00", end: "00:03", text: "Hello everyone, welcome to the meeting." },
+    { start: "00:03", end: "00:07", text: "Today we will discuss the project timeline." },
+    { start: "00:07", end: "00:10", text: "Let's start with last week's updates." },
+  ];
+
+  const container = document.getElementById("transcript");
+  transcript.forEach(seg => {
+    const div = document.createElement("div");
+    div.className = "segment";
+    div.innerHTML = `<span class="timestamp">[${seg.start}–${seg.end}]</span>${seg.text}`;
+    container.appendChild(div);
+  });
+
+  // Detect selection and send to backend
+  document.addEventListener("mouseup", async () => {
+    const selection = window.getSelection().toString().trim();
+    if (!selection) return;
+
+    // Basic feedback
+    const userConfirm = confirm(`Send to AI?\n\n"${selection}"`);
+    if (!userConfirm) return;
+
+    try {
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: selection }),
+      });
+
+      if (!response.ok) throw new Error("Server error");
+      const data = await response.json();
+      const answer = data.answer || "(No answer)";
+      alert("AI says:\n\n" + answer);
+    } catch (err) {
+      alert("Error contacting backend: " + err.message);
+      console.error(err);
+    }
+  });
+</script>
+
+</body>
+</html>
