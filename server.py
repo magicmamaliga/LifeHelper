@@ -19,9 +19,8 @@ from urllib.parse import unquote
 from datetime import datetime
 import json
 from contextlib import asynccontextmanager
-
+import subprocess
 import numpy as np
-import whisperCppWrapper as whisper_cpp
 from scipy.io.wavfile import write as write_wav
 
 AUDIO_BUFFER = []   # list of numpy arrays
@@ -36,6 +35,36 @@ _audio_q = queue.Queue()
 _whisper_model = whisper.load_model("base")
 
 live_transcript = []  # global list to hold timestamped text
+
+
+WHISPER_CPP_PATH = r"C:\Users\Mate\Desktop\whisper.cpp\build\bin\whisper-cli.exe"
+WHISPER_MODEL = r"C:\Users\Mate\Desktop\whisper.cpp\models\ggml-base.en.bin"
+
+def transcribe_with_whisper_cpp(audio_data, sample_rate=16000):
+    """Transcribe raw audio bytes with whisper.cpp binary."""
+    # print(audio_data )
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
+        tmp_wav.write(audio_data)
+        tmp_path = tmp_wav.name
+
+    txt_path = tmp_path.replace(".wav", ".txt")
+
+    cmd = [
+        WHISPER_CPP_PATH,
+        "-m", WHISPER_MODEL,
+        "-f", tmp_path,
+        "-otxt",
+        "-of", tmp_path.replace(".wav", ""),
+        "-t", "8",
+    ]
+    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    with open(txt_path, "r", encoding="utf-8") as f:
+        text = f.read().strip()
+
+    os.remove(tmp_path)
+    os.remove(txt_path)
+    return text
 
 
 def _audio_callback(indata, frames, time_info, status):
@@ -69,7 +98,7 @@ def _transcribe_worker():
                 wav_data = wav_buf.getvalue()
 
                 # call whisper.cpp binary
-                text = whisper_cpp.transcribe_with_whisper_cpp(wav_data)
+                text = transcribe_with_whisper_cpp(wav_data)
 
                  # --- FILTERING LOGIC ---
                 if not text:
