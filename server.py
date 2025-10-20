@@ -121,39 +121,91 @@ def _capture_loop():
 
 
 def _transcribe_worker():
-    """Continuously process queued audio and transcribe via whisper.cpp."""
+    """
+    Continuously process queued audio and transcribe when a full sentence or max duration is reached.
+    Uses adaptive silence detection to capture natural phrases/sentences.
+    """
     global stop_threads
-    print("🔊 Transcription thread started.")
+    print("🔊 Transcription thread started (sentence-level mode).")
 
     buffer = np.zeros((0, 1), dtype=np.float32)
-    chunk_samples = SAMPLE_RATE * CHUNK_SECONDS
+
+    # --- Configurable parameters ---
+    max_samples = SAMPLE_RATE * 7           # hard upper limit (safety)
+    silence_threshold = 0.005              # lower = less sensitive; adapt to mic noise
+    silence_window = int(SAMPLE_RATE * 0.2) # analyze every 200ms
+    silence_required = 0.8                  # how long quiet must last before we finalize
+    min_sentence_length = 1.8               # must have at least this much speech
+    trailing_pad = int(SAMPLE_RATE * 0.3)   # keep extra 0.5s after silence
+
+    # --- Internal counters ---
+    silence_counter = 0
+    speech_detected = False
+    silence_limit = int(silence_required / 0.2)
+
+    def current_rms(x):
+        return np.sqrt(np.mean(np.square(x)))
 
     while not stop_threads:
         try:
             data = _audio_q.get(timeout=1)
             buffer = np.concatenate((buffer, data))
 
-            # process chunk when enough samples gathered
-            if len(buffer) >= chunk_samples:
-                segment = np.squeeze(buffer[:chunk_samples])
-                buffer = buffer[chunk_samples:]
+            # calculate recent energy
+            if len(buffer) >= silence_window:
+                recent = buffer[-silence_window:]
+                rms = current_rms(recent)
 
-                wav_buf = io.BytesIO()
-                sf.write(wav_buf, segment, SAMPLE_RATE, format="WAV")
-                text = transcribe_with_whisper_cpp(wav_buf.getvalue())
+                # detect speech vs silence
+                if rms > silence_threshold:
+                    silence_counter = 0
+                    speech_detected = True
+                else:
+                    if speech_detected:  # only count silence after we had speech
+                        silence_counter += 1
 
-                if not valid_text(text):
+                # finalize when we’ve had real speech and silence long enough
+                total_duration = len(buffer) / SAMPLE_RATE
+                if (
+                    speech_detected
+                    and silence_counter >= silence_limit
+                    and total_duration >= min_sentence_length
+                ):
+                    end_idx = min(len(buffer) + trailing_pad, len(buffer))
+                    segment = np.squeeze(buffer[:end_idx])
+                    buffer = np.zeros((0, 1), dtype=np.float32)
+                    silence_counter = 0
+                    speech_detected = False
+                    transcribe_segment(segment)
                     continue
 
-                ts = datetime.now().isoformat(timespec='seconds')
-                live_transcript.append({"timestamp": ts, "text": text})
-                print(f"[{ts}] {text}")
+                # force transcription at hard max
+                if len(buffer) >= max_samples:
+                    segment = np.squeeze(buffer[:max_samples])
+                    buffer = buffer[max_samples:]
+                    silence_counter = 0
+                    speech_detected = False
+                    transcribe_segment(segment)
+                    continue
 
         except queue.Empty:
             time.sleep(0.05)
 
     print("🧵 Transcription thread exited.")
 
+
+def transcribe_segment(segment: np.ndarray):
+    """Convert a segment to text via whisper.cpp and append if valid."""
+    wav_buf = io.BytesIO()
+    sf.write(wav_buf, segment, SAMPLE_RATE, format="WAV")
+    text = transcribe_with_whisper_cpp(wav_buf.getvalue())
+
+    if not valid_text(text):
+        return
+
+    ts = datetime.now().isoformat(timespec='seconds')
+    live_transcript.append({"timestamp": ts, "text": text})
+    print(f"[{ts}] {text}")
 
 def valid_text(text: str) -> bool:
     """Filter out meaningless or silent segments."""
