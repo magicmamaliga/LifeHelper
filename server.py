@@ -35,7 +35,7 @@ _audio_q = queue.Queue()
 _whisper_model = whisper.load_model("base")
 
 live_transcript = []  # global list to hold timestamped text
-
+stop_threads = False
 
 WHISPER_CPP_PATH = r"C:\Users\Mate\Desktop\whisper.cpp\build\bin\whisper-cli.exe"
 WHISPER_MODEL = r"C:\Users\Mate\Desktop\whisper.cpp\models\ggml-base.en.bin"
@@ -57,7 +57,9 @@ def transcribe_with_whisper_cpp(audio_data, sample_rate=16000):
         "-of", tmp_path.replace(".wav", ""),
         "-t", "8",
     ]
-    subprocess.run(cmd, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, cmd, result.stderr)
 
     with open(txt_path, "r", encoding="utf-8") as f:
         text = f.read().strip()
@@ -78,11 +80,12 @@ SAMPLE_RATE = 16000          # Hz
 
 def _transcribe_worker():
     """Continuously pull audio from the queue and transcribe it with whisper.cpp."""
+    global stop_threads
     print("🔊 Audio capture thread started.")
     buffer = np.zeros((0, 1), dtype=np.float32)
     chunk_samples = SAMPLE_RATE * CHUNK_SECONDS
 
-    while True:
+    while not stop_threads:
         try:
             data = _audio_q.get(timeout=1)
             buffer = np.concatenate((buffer, data))
@@ -122,6 +125,7 @@ def _transcribe_worker():
             continue
 
 def _capture_loop():
+    global stop_threads
     with sd.InputStream(
         channels=1,
         samplerate=SAMPLE_RATE,
@@ -130,8 +134,10 @@ def _capture_loop():
         dtype="float32"
     ):
         print("🎙  Listening... (Ctrl+C to stop server)")
-        while True:
+        while not stop_threads:
             time.sleep(1)
+    print("🛑 Audio capture stopped.")
+
 
 # Load model once at startup (choose "base", "small", "medium", "large")
 whisper_model = whisper.load_model("small")  # good balance for CPU-only
@@ -144,15 +150,14 @@ whisper_model = whisper.load_model("small")  # good balance for CPU-only
 async def lifespan(app: FastAPI):
     # --- Startup actions ---
     print("🚀 FastAPI starting up...")
-    print("Registered routes:")
-    for route in app.router.routes:
-        print(route.path)
+    global stop_threads
     
     # (You can start your background audio capture thread here if needed)
     start_audio_streamer()
 
     yield  # ⬅️ app runs between startup and shutdown
-
+    stop_threads = True
+    time.sleep(1.5)  # give threads time to exit cleanly
     save_transcript_and_audio_on_shutdown()
 
     print("👋 FastAPI shutting down...")
@@ -188,6 +193,8 @@ def start_audio_streamer():
     threading.Thread(target=_capture_loop, daemon=True).start()
 
 def save_transcript_and_audio_on_shutdown():
+
+    print("💾 Saving transcript and audio on shutdown...")
 
     if not live_transcript and not AUDIO_BUFFER:
         print("Nothing to save.")
