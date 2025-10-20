@@ -42,7 +42,6 @@ WHISPER_MODEL = r"C:\Users\Mate\Desktop\whisper.cpp\models\ggml-base.en.bin"
 
 def transcribe_with_whisper_cpp(audio_data, sample_rate=16000):
     """Transcribe raw audio bytes with whisper.cpp binary."""
-    # print(audio_data )
     with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as tmp_wav:
         tmp_wav.write(audio_data)
         tmp_path = tmp_wav.name
@@ -57,16 +56,42 @@ def transcribe_with_whisper_cpp(audio_data, sample_rate=16000):
         "-of", tmp_path.replace(".wav", ""),
         "-t", "8",
     ]
-    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
-    if result.returncode != 0:
-        raise subprocess.CalledProcessError(result.returncode, cmd, result.stderr)
 
-    with open(txt_path, "r", encoding="utf-8") as f:
-        text = f.read().strip()
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+
+    # Handle known shutdown signal (0xC000013A)
+    if result.returncode == 3221225786:
+        print("⚠️ whisper.cpp interrupted by shutdown signal, ignoring.")
+        try:
+            os.remove(tmp_path)
+            if os.path.exists(txt_path):
+                os.remove(txt_path)
+        except OSError:
+            pass
+        return ""
+
+    if result.returncode != 0:
+        print(f"⚠️ whisper.cpp failed (exit {result.returncode}): {result.stderr.decode('utf-8', errors='ignore')}")
+        try:
+            os.remove(tmp_path)
+            if os.path.exists(txt_path):
+                os.remove(txt_path)
+        except OSError:
+            pass
+        return ""
+
+    try:
+        with open(txt_path, "r", encoding="utf-8") as f:
+            text = f.read().strip()
+    except FileNotFoundError:
+        text = ""
 
     os.remove(tmp_path)
-    os.remove(txt_path)
+    if os.path.exists(txt_path):
+        os.remove(txt_path)
+
     return text
+
 
 
 def _audio_callback(indata, frames, time_info, status):
@@ -142,8 +167,6 @@ def _capture_loop():
 # Load model once at startup (choose "base", "small", "medium", "large")
 whisper_model = whisper.load_model("small")  # good balance for CPU-only
 # Create app with lifespan
-
-
 
 
 @asynccontextmanager
