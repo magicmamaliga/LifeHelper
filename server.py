@@ -10,6 +10,7 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from urllib.parse import unquote
 
+from fastapi.responses import StreamingResponse
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
@@ -276,23 +277,39 @@ def get_live(since: str = None):
     except Exception:
         return {"error": "Invalid 'since' format. Expected YYYY-MM-DDTHH:MM:SS"}
 
+# Store conversation history globally (this could be in-memory or a session)
+
+conversation_history = []
 
 @app.post("/ask")
 async def ask_ai(request: Request):
-    """Ask an AI interview-style question."""
+    """Ask the OpenAI API and stream the response as it's generated."""
     data = await request.json()
     question = data.get("question", "").strip()
     if not question:
         return {"answer": "(No question text received)"}
 
-    completion = client.chat.completions.create(
-        model="gpt-5-mini",
-        messages=[
-            {"role": "system", "content": "You are in a Java interview. Be concise, natural, and realistic."},
-            {"role": "user", "content": question},
-        ]
-    )
-    return {"answer": completion.choices[0].message.content}
+    # Add user's question to the history
+    conversation_history.append({"role": "user", "content": question})
+
+    def stream():
+        partial_answer = ""
+
+        for chunk in client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=conversation_history,
+            stream=True,
+        ):
+            delta = chunk.choices[0].delta
+            if delta and delta.content:
+                partial_answer += delta.content
+                yield delta.content  # stream token-by-token
+
+        # after stream ends, save the assistant's full message
+        conversation_history.append({"role": "assistant", "content": partial_answer})
+
+    return StreamingResponse(stream(), media_type="text/plain")
+
 
 
 # -------------------------------------------------------------------

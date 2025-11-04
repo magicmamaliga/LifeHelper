@@ -8,12 +8,29 @@ export async function fetchLive(since) {
   return await res.json();
 }
 
-export async function askAI(question) {
+export async function askAI(question, onToken) {
   const res = await fetch(`${API_BASE}/ask`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify({ question }),
   });
+
   if (!res.ok) throw new Error("AI request failed");
-  return await res.json();
+
+  // Read the response stream
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let utf8String = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    // Decode the new chunk of data (tokens)
+    utf8String = decoder.decode(value, { stream: true });
+    onToken(utf8String); // Send the new part to the parent component
+  }
 }
+

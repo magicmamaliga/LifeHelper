@@ -30,10 +30,7 @@ function App() {
 
   return (
     <div style={{ margin: "2rem", fontFamily: "system-ui" }}>
-      <h2>🎙 Live Transcript Viewer</h2>
-      <p style={{ color: "#555" }}>
-        Automatically displaying new transcription lines from your running Whisper backend.
-      </p>
+      <h2>Life helper</h2>
       <Transcript segments={segments} />
     </div>
   );

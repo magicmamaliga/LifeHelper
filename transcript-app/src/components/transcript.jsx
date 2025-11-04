@@ -3,9 +3,14 @@ import { askAI } from "../api";
 
 export default function Transcript({ segments }) {
   const containerRef = useRef(null);
+
+  // State
   const [selectedText, setSelectedText] = useState("");
   const [aiResponse, setAiResponse] = useState("");
-  const PARAGRAPH_LENGTH = 4; // number of segments per paragraph
+  const [history, setHistory] = useState([]); // [{question, answer}]
+  const [currentIndex, setCurrentIndex] = useState(-1); // -1 means "live"
+
+  const PARAGRAPH_LENGTH = 4;
 
   // --- Group text into paragraphs automatically ---
   const paragraphs = [];
@@ -15,7 +20,7 @@ export default function Transcript({ segments }) {
     paragraphs.push(text);
   }
 
-  // --- Scroll to bottom on new text ---
+  // --- Scroll to bottom on new transcript text ---
   useEffect(() => {
     if (containerRef.current) {
       containerRef.current.scrollTo({
@@ -25,7 +30,7 @@ export default function Transcript({ segments }) {
     }
   }, [paragraphs.length]);
 
-  // --- Handle text selection and query AI ---
+  // --- Handle text selection + stream AI response ---
   const handleSelection = async () => {
     const selection = window.getSelection().toString().trim();
     if (!selection) return;
@@ -33,13 +38,43 @@ export default function Transcript({ segments }) {
     setSelectedText(selection);
     setAiResponse("⏳ Thinking...");
 
+    let streamed = "";
     try {
-      const { answer } = await askAI(selection);
-      setAiResponse(answer);
+      await askAI(selection, (token) => {
+        streamed += token;
+        setAiResponse(streamed);
+      });
+
+      // After completion → save Q&A in history
+      setHistory((prev) => [...prev, { question: selection, answer: streamed }]);
+      setCurrentIndex((prev) => prev + 1);
     } catch (err) {
       setAiResponse("❌ Error: " + err.message);
     }
   };
+
+  // --- Navigation controls ---
+  const handlePrev = () => {
+    if (currentIndex > 0) {
+      const prevQA = history[currentIndex - 1];
+      setCurrentIndex(currentIndex - 1);
+      setSelectedText(prevQA.question);
+      setAiResponse(prevQA.answer);
+    }
+  };
+
+  const handleNext = () => {
+    if (currentIndex < history.length - 1) {
+      const nextQA = history[currentIndex + 1];
+      setCurrentIndex(currentIndex + 1);
+      setSelectedText(nextQA.question);
+      setAiResponse(nextQA.answer);
+    }
+  };
+
+  // --- Display counters ---
+  const total = history.length;
+  const current = currentIndex >= 0 ? currentIndex + 1 : total;
 
   return (
     <div
@@ -77,6 +112,8 @@ export default function Transcript({ segments }) {
       {/* RIGHT SIDE — AI ANSWER PANEL */}
       <div
         style={{
+          display: "flex",
+          flexDirection: "column",
           overflowY: "auto",
           background: "#fafafa",
           border: "1px solid #ddd",
@@ -102,15 +139,64 @@ export default function Transcript({ segments }) {
         <h3>🤖 AI Response</h3>
         <div
           style={{
-            minHeight: "10rem",
+            flexGrow: 1,
             background: "#fff",
             padding: "1rem",
             borderRadius: "8px",
             boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)",
             whiteSpace: "pre-wrap",
+            marginBottom: "1rem",
+            overflowY: "auto",
           }}
         >
           {aiResponse}
+        </div>
+
+        {/* Navigation Bar */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            gap: "1rem",
+            marginTop: "0.5rem",
+          }}
+        >
+          <button
+            onClick={handlePrev}
+            disabled={currentIndex <= 0}
+            style={{
+              padding: "0.5rem 1rem",
+              borderRadius: "6px",
+              border: "1px solid #ccc",
+              background: currentIndex <= 0 ? "#eee" : "#fff",
+              cursor: currentIndex <= 0 ? "not-allowed" : "pointer",
+              minWidth: "80px",
+            }}
+          >
+            ⬅️ Prev
+          </button>
+
+          <span style={{ fontSize: "0.9rem", color: "#555" }}>
+            {total > 0 ? `Query ${current} of ${total}` : "No previous queries yet"}
+          </span>
+
+          <button
+            onClick={handleNext}
+            disabled={currentIndex >= history.length - 1}
+            style={{
+              padding: "0.5rem 1rem",
+              borderRadius: "6px",
+              border: "1px solid #ccc",
+              background:
+                currentIndex >= history.length - 1 ? "#eee" : "#fff",
+              cursor:
+                currentIndex >= history.length - 1 ? "not-allowed" : "pointer",
+              minWidth: "80px",
+            }}
+          >
+            Next ➡️
+          </button>
         </div>
       </div>
     </div>
