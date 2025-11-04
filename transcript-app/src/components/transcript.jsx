@@ -9,6 +9,7 @@ export default function Transcript({ segments }) {
   const [aiResponse, setAiResponse] = useState("");
   const [history, setHistory] = useState([]); // [{question, answer}]
   const [currentIndex, setCurrentIndex] = useState(-1); // -1 means "live"
+  const [userInput, setUserInput] = useState("");
 
   const PARAGRAPH_LENGTH = 4;
 
@@ -72,6 +73,32 @@ export default function Transcript({ segments }) {
     }
   };
 
+  const handleUserInputKey = async (e) => {
+  if (e.key === "Enter" && userInput.trim()) {
+    e.preventDefault();
+
+    const question = userInput.trim();
+    setSelectedText(question);
+    setAiResponse("⏳ Thinking...");
+    setUserInput("");
+
+    let streamed = "";
+    try {
+      await askAI(question, (token) => {
+        streamed += token;
+        setAiResponse(streamed);
+      });
+
+      // Save into history
+      setHistory((prev) => [...prev, { question, answer: streamed }]);
+      setCurrentIndex((prev) => prev + 1);
+    } catch (err) {
+      setAiResponse("❌ Error: " + err.message);
+    }
+  }
+};
+
+
   // --- Display counters ---
   const total = history.length;
   const current = currentIndex >= 0 ? currentIndex + 1 : total;
@@ -121,23 +148,43 @@ export default function Transcript({ segments }) {
           borderRadius: "10px",
         }}
       >
-        <h3>📝 Selected Text</h3>
-        <div
-          style={{
-            minHeight: "6rem",
-            background: "#fff",
-            padding: "1rem",
-            borderRadius: "8px",
-            boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)",
-            marginBottom: "1rem",
-            whiteSpace: "pre-wrap",
-          }}
-        >
-          {selectedText || "Select some text from the transcript on the left."}
-        </div>
+      <input
+        type="text"
+        placeholder="Ask something about this text... (press Enter)"
+        value={userInput}
+        onChange={(e) => setUserInput(e.target.value)}
+        onKeyDown={handleUserInputKey}
+        style={{
+          width: "100%",
+          padding: "0.6rem 1rem",
+          marginBottom: "1rem",
+          borderRadius: "8px",
+          border: "1px solid #ccc",
+          outline: "none",
+          fontSize: "1rem",
+        }}
+      />
+      <h3>📝 Selected Text</h3>
+      <div
+        style={{
+          minHeight: "6rem",
+          background: "#fff",
+          padding: "1rem",
+          borderRadius: "8px",
+          boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)",
+          marginBottom: "0.5rem",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {selectedText || "Select some text from the transcript or answer."}
+      </div>
+
+
+
 
         <h3>🤖 AI Response</h3>
         <div
+          onMouseUp={handleSelection} // 🔥 enable selection inside AI answer too
           style={{
             flexGrow: 1,
             background: "#fff",
@@ -147,6 +194,7 @@ export default function Transcript({ segments }) {
             whiteSpace: "pre-wrap",
             marginBottom: "1rem",
             overflowY: "auto",
+            cursor: "text", // show text cursor to hint you can select
           }}
         >
           {aiResponse}
