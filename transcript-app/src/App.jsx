@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import Transcript from "./components/Transcript";
+import Transcript from "./components/Transcript.jsx";
 import { fetchLive } from "./api";
 
 function App() {
@@ -13,7 +13,12 @@ function App() {
         const data = await fetchLive(lastTimestamp);
         const newSegs = data.segments || [];
         if (newSegs.length > 0) {
-          setSegments((prev) => [...prev, ...newSegs]);
+          setSegments(prev => {
+            // 🔍 remove duplicates by timestamp
+            const existingTimestamps = new Set(prev.map(s => s.timestamp));
+            const newSegments = data.segments.filter(s => !existingTimestamps.has(s.timestamp));
+            return [...prev, ...newSegments];
+          });
           setLastTimestamp(newSegs[newSegs.length - 1].timestamp);
         }
       } catch (err) {
