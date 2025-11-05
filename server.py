@@ -242,7 +242,7 @@ async def lifespan(app: FastAPI):
     print("🛑 Stopping threads...")
     stop_threads = True
     time.sleep(1.5)
-    save_transcript_and_audio()
+    save_transcript_and_audio_on_shutdown()
     print("👋 FastAPI shutdown complete.")
 
 
@@ -278,7 +278,6 @@ def get_live(since: str = None):
         return {"error": "Invalid 'since' format. Expected YYYY-MM-DDTHH:MM:SS"}
 
 # Store conversation history globally (this could be in-memory or a session)
-
 conversation_history = []
 
 @app.post("/ask")
@@ -316,23 +315,31 @@ async def ask_ai(request: Request):
 # SAVE ON SHUTDOWN
 # -------------------------------------------------------------------
 
-def save_transcript_and_audio():
-    """Persist transcript and audio to disk when shutting down."""
+
+def save_transcript_and_audio_on_shutdown():
     if not live_transcript and not AUDIO_BUFFER:
         print("Nothing to save.")
         return
 
     timestamp = datetime.now().isoformat(timespec='seconds').replace(":", "-")
+    os.makedirs("./transcripts", exist_ok=True)
 
+    # Use a shared base name for both files
+    base_name = f"session_{timestamp}"
+    json_path = os.path.join("transcripts", f"{base_name}.json")
+    audio_path = os.path.join("transcripts", f"{base_name}.wav")
+
+    # --- Save transcript ---
     if live_transcript:
-        with open(f"transcript_live_{timestamp}.json", "w", encoding="utf-8") as f:
+        with open(json_path, "w", encoding="utf-8") as f:
             json.dump(live_transcript, f, ensure_ascii=False, indent=2)
-        print("💾 Transcript saved.")
+        print(f"💾 Transcript saved to {json_path}")
 
+    # --- Save audio ---
     if AUDIO_BUFFER:
         audio_data = np.concatenate(AUDIO_BUFFER, axis=0)
-        write_wav(f"audio_live_{timestamp}.wav", SAMPLE_RATE, audio_data)
-        print("🎧 Audio saved.")
+        write_wav(audio_path, SAMPLE_RATE, audio_data)
+        print(f"🎧 Audio saved to {audio_path}")
 
 
 # -------------------------------------------------------------------
