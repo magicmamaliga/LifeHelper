@@ -109,7 +109,7 @@ export default function Transcript({ segments }) {
         display: "grid",
         gridTemplateColumns: "1fr 1fr",
         gap: "1rem",
-        height: "85vh",
+        height: "100%",
       }}
     >
       {/* LEFT SIDE — LIVE TRANSCRIPT */}
@@ -119,7 +119,7 @@ export default function Transcript({ segments }) {
         style={{
           overflowY: "auto",
           background: "#fff",
-          padding: "1.5rem",
+          padding: ".6rem",
           borderRadius: "10px",
           boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
           lineHeight: 1.7,
@@ -144,7 +144,7 @@ export default function Transcript({ segments }) {
           overflowY: "auto",
           background: "#fafafa",
           border: "1px solid #ddd",
-          padding: "1.5rem",
+          padding: ".6rem",
           borderRadius: "10px",
         }}
       >
@@ -155,7 +155,6 @@ export default function Transcript({ segments }) {
         onChange={(e) => setUserInput(e.target.value)}
         onKeyDown={handleUserInputKey}
         style={{
-          width: "100%",
           padding: "0.6rem 1rem",
           marginBottom: "1rem",
           borderRadius: "8px",
@@ -164,25 +163,24 @@ export default function Transcript({ segments }) {
           fontSize: "1rem",
         }}
       />
-      <h3>📝 Selected Text</h3>
+      <span>📝 Selected Text</span>
       <div
         style={{
-          minHeight: "6rem",
+          minHeight: "4rem",
+          maxHeight: "6rem",
           background: "#fff",
           padding: "1rem",
           borderRadius: "8px",
           boxShadow: "inset 0 1px 2px rgba(0,0,0,0.05)",
           marginBottom: "0.5rem",
           whiteSpace: "pre-wrap",
+          overflowY: "auto",
         }}
       >
         {selectedText || "Select some text from the transcript or answer."}
       </div>
 
-
-
-
-        <h3>🤖 AI Response</h3>
+        <span>🤖 AI Response</span>
         <div
           onMouseUp={handleSelection} // 🔥 enable selection inside AI answer too
           style={{
@@ -207,14 +205,13 @@ export default function Transcript({ segments }) {
             justifyContent: "center",
             alignItems: "center",
             gap: "1rem",
-            marginTop: "0.5rem",
           }}
         >
           <button
             onClick={handlePrev}
             disabled={currentIndex <= 0}
             style={{
-              padding: "0.5rem 1rem",
+              padding: "0.2rem 1rem",
               borderRadius: "6px",
               border: "1px solid #ccc",
               background: currentIndex <= 0 ? "#eee" : "#fff",
@@ -233,7 +230,7 @@ export default function Transcript({ segments }) {
             onClick={handleNext}
             disabled={currentIndex >= history.length - 1}
             style={{
-              padding: "0.5rem 1rem",
+              padding: "0.2rem 1rem",
               borderRadius: "6px",
               border: "1px solid #ccc",
               background:

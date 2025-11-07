@@ -29,8 +29,7 @@ function App() {
   }, [lastTimestamp]);
 
   return (
-    <div style={{ margin: "2rem", fontFamily: "system-ui" }}>
-      <h2>Life helper</h2>
+    <div style={{fontFamily: "system-ui", padding: "0rem", width: '100%', height: '100%', boxSizing: "border-box", display: "flex", flexDirection: "column"}}>
       <Transcript segments={segments} />
     </div>
   );
