@@ -10,15 +10,18 @@ from datetime import datetime
 from contextlib import asynccontextmanager
 from urllib.parse import unquote
 
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 import numpy as np
 import sounddevice as sd
 import soundfile as sf
 from scipy.io.wavfile import write as write_wav
 from fastapi import FastAPI, Request
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from openai import OpenAI
 import whisper
+import webbrowser
+
 
 # -------------------------------------------------------------------
 # CONFIGURATION
@@ -48,6 +51,8 @@ _whisper_model = whisper.load_model("base")
 # -------------------------------------------------------------------
 # WHISPER.CPP TRANSCRIPTION
 # -------------------------------------------------------------------
+
+webbrowser.open("http://localhost:8000")
 
 def transcribe_with_whisper_cpp(audio_data: bytes) -> str:
     """Run whisper.cpp binary on given WAV audio data."""
@@ -247,6 +252,12 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+
+@app.get("/{full_path:path}")
+def serve_react(full_path: str):
+    return FileResponse("static/index.html")
 
 app.add_middleware(
     CORSMiddleware,
