@@ -252,12 +252,6 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
-
-@app.get("/{full_path:path}")
-def serve_react(full_path: str):
-    return FileResponse("static/index.html")
 
 app.add_middleware(
     CORSMiddleware,
@@ -267,12 +261,12 @@ app.add_middleware(
 )
 
 
-@app.get("/")
+@app.get("/api/")
 def root():
     return {"message": "FastAPI is running"}
 
 
-@app.get("/live")
+@app.get("/api/live")
 def get_live(since: str = None):
     """Return live transcript since a given timestamp (optional)."""
     if not since:
@@ -291,7 +285,7 @@ def get_live(since: str = None):
 # Store conversation history globally (this could be in-memory or a session)
 conversation_history = []
 
-@app.post("/ask")
+@app.post("/api/ask")
 async def ask_ai(request: Request):
     """Ask the OpenAI API and stream the response as it's generated."""
     data = await request.json()
@@ -360,3 +354,10 @@ def save_transcript_and_audio_on_shutdown():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+
+@app.get("/{full_path:path}")
+def serve_react(full_path: str):
+    return FileResponse("static/index.html")
