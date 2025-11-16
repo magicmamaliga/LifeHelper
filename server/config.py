@@ -3,6 +3,9 @@ import sounddevice as sd
 from openai import OpenAI
 import whisper
 
+import sys
+
+
 SAMPLE_RATE = 16000
 CHUNK_SECONDS = 3
 
@@ -18,6 +21,6 @@ client = OpenAI()
 whisper_model = whisper.load_model("base")
 
 TRANSCRIPTS_DIR = "./transcripts"
-STATIC_DIR = "./static"
+STATIC_DIR = "./dist"
 
 os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)

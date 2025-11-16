@@ -1,15 +1,26 @@
+import sys
+import os
 from fastapi import APIRouter
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from ..config import STATIC_DIR
 
-router = APIRouter()
-
-router.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-router.mount("/assets", StaticFiles(directory=f"{STATIC_DIR}/assets"), name="assets")
 
 
-@router.get("/{full_path:path}")
-def serve_react(full_path: str):
-    return FileResponse(f"{STATIC_DIR}/index.html")
+def resource_path(relative_path):
+    """
+    Correct resource path resolver for both dev and PyInstaller.
+    """
+    if getattr(sys, 'frozen', False) and hasattr(sys, "_MEIPASS"):
+        base_path = sys._MEIPASS
+    else:
+        # <-- IMPORTANT FIX: use project root, not the folder of this file
+        base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
+    return os.path.join(base_path, relative_path)
+
+
+# Absolute static folder path
+static_root = resource_path(STATIC_DIR)
+assets_root = os.path.join(static_root, "assets")
+
