@@ -52,7 +52,7 @@ _whisper_model = whisper.load_model("base")
 # WHISPER.CPP TRANSCRIPTION
 # -------------------------------------------------------------------
 
-webbrowser.open("http://localhost:8000")
+# webbrowser.open("http://localhost:8000")
 
 def transcribe_with_whisper_cpp(audio_data: bytes) -> str:
     """Run whisper.cpp binary on given WAV audio data."""
@@ -351,13 +351,13 @@ def save_transcript_and_audio_on_shutdown():
 # ENTRY POINT
 # -------------------------------------------------------------------
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+# if __name__ == "__main__":
+#     import uvicorn
+#     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
+# app.mount("/static", StaticFiles(directory="static"), name="static")
+# app.mount("/assets", StaticFiles(directory="static/assets"), name="assets")
 
-@app.get("/{full_path:path}")
-def serve_react(full_path: str):
-    return FileResponse("static/index.html")
+# @app.get("/{full_path:path}")
+# def serve_react(full_path: str):
+#     return FileResponse("static/index.html")
