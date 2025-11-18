@@ -17,7 +17,7 @@ def resource_path(relative_path):
     else:
         # <-- IMPORTANT FIX: use project root, not the folder of this file
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
-    return os.path.join(base_path, relative_path)
+    return os.path.normpath(os.path.join(base_path, relative_path))
 
 
 # Absolute static folder path
