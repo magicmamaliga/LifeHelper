@@ -1,38 +1,22 @@
-# lifehelper.spec
-import os
-from PyInstaller.utils.hooks import collect_submodules
-
-project_root = os.path.abspath(".")
-whisper_cli = os.path.join(project_root, "whisper", "whisper-cli.exe")
-base_model = os.path.join(project_root, "whisper", "models", "ggml-base.en.bin")
-frontend_dist = os.path.join(project_root, "dist")
-
-datas = []
-
-# Include only ggml-base.en.bin
-if os.path.isfile(base_model):
-    datas.append((base_model, "whisper/models"))
-
-# Include frontend build
-if os.path.isdir(frontend_dist):
-    datas.append((frontend_dist, "dist"))
-
-binaries = []
-
-# Whisper binary next to lifehelper.exe
-if os.path.isfile(whisper_cli):
-    binaries.append((whisper_cli, "."))
+# -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
-    ["lifehelper.py"],
-    pathex=[project_root],
-    binaries=binaries,
-    datas=datas,
-    hiddenimports=[
-        *collect_submodules("server"),
-        "platformdirs",
+    ['lifehelper.py'],
+    pathex=[],
+    binaries=[
+        ('whisper/whisper-cli.exe', 'whisper'),          # drop into dist/lifehelper/whisper/
     ],
+    datas=[
+        ('whisper/models/ggml-base.en.bin', 'whisper/models'),  # drop into dist/lifehelper/whisper/models/
+        ('dist', 'dist')                                        # dist folder → dist/lifehelper/dist
+    ],
+    hiddenimports=[],
+    hookspath=[],
+    hooksconfig={},
+    runtime_hooks=[],
+    excludes=[],
     noarchive=False,
+    optimize=0,
 )
 
 pyz = PYZ(a.pure)
@@ -40,11 +24,19 @@ pyz = PYZ(a.pure)
 exe = EXE(
     pyz,
     a.scripts,
-    a.binaries,
-    a.zipfiles,
-    a.datas,
-    name="lifehelper",
+    [],
+    exclude_binaries=True,
+    name='lifehelper',
+    debug=False,
+    bootloader_ignore_signals=False,
+    strip=False,
+    upx=True,
     console=True,
+    disable_windowed_traceback=False,
+    argv_emulation=False,
+    target_arch=None,
+    codesign_identity=None,
+    entitlements_file=None,
 )
 
 coll = COLLECT(
@@ -52,6 +44,7 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=False,
-    name="lifehelper",
+    upx=True,
+    upx_exclude=[],
+    name='lifehelper',
 )
