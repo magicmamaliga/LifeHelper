@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000/api";
+const API_BASE = window.api?.baseUrl || "http://localhost:8000/api";
 
 export async function fetchLive(since) {
   let url = `${API_BASE}/live`;

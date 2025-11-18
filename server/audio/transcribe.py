@@ -7,7 +7,7 @@ import soundfile as sf
 from ..config import SAMPLE_RATE, WHISPER_CPP_PATH, WHISPER_MODEL
 from ..utils.whisper_cpp import transcribe_with_whisper_cpp
 from .state import add_to_transcript
-
+from ..routes.static import resource_path
 
 def valid_text(text: str) -> bool:
     if not text:
@@ -27,7 +27,8 @@ def transcribe_segment(segment: np.ndarray):
 
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmpname = tmp.name
-
+    print("Transcribing segment...")
+    print(  WHISPER_CPP_PATH, WHISPER_MODEL, tmpname  )
     text = transcribe_with_whisper_cpp(
         WHISPER_CPP_PATH, WHISPER_MODEL, data, tmpname
     )

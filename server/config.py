@@ -9,8 +9,8 @@ import sys
 SAMPLE_RATE = 16000
 CHUNK_SECONDS = 3
 
-WHISPER_CPP_PATH = r"C:\Users\Mate\Desktop\whisper.cpp\build\bin\whisper-cli.exe"
-WHISPER_MODEL = r"C:\Users\Mate\Desktop\whisper.cpp\models\ggml-base.en.bin"
+WHISPER_CPP_PATH = r"C:\Users\Mate\Desktop\LifeHelper\whisper\whisper-cli.exe"
+WHISPER_MODEL = r"C:\Users\Mate\Desktop\LifeHelper\whisper\ggml-base.en.bin"
 
 DEVICE_INDEX = next(
     i for i, d in enumerate(sd.query_devices())

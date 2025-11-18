@@ -25,8 +25,8 @@ async def lifespan(app: FastAPI):
     save_transcript_and_audio_on_shutdown()
     print("👋 FastAPI shutdown complete.")
 
-
 app = FastAPI(lifespan=lifespan)
+
 
 app.add_middleware(
     CORSMiddleware,
