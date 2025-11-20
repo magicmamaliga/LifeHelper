@@ -30,6 +30,7 @@ transcripts/
 static/
 whisper/models
 release/
+electron-release/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template

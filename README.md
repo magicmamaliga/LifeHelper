@@ -5,14 +5,22 @@ Run Dev:
 Run Build:
 npm:
  npm run build
- npm run electron
- npm run dist
+ <!-- npm run electron -->
+ <!-- npm run dist -->
+
+Run Electron:
+    npm run build
+    cd electron
+    npm run pack
 
 Python:
-pyinstaller   --onedir  --add-binary "whisper/whisper-cli.exe;whisper/whisper-cli.exe"  --add-data "whisper/models/ggml-base.en.bin;whisper/models/ggml-base.en.bin" --add-data "dist;dist" lifehelper.py
+    pyinstaller lifehelper.spec --clean 
 
 
-pyinstaller --onefile --add-data "dist;dist" lifehelper.py   
+    pyinstaller   --onedir  --add-binary "whisper/whisper-cli.exe;whisper/whisper-cli.exe"  --add-data "whisper/models/ggml-base.en.bin;whisper/models/ggml-base.en.bin" --add-data "dist;dist" lifehelper.py
+
+
+    pyinstaller --onefile --add-data "dist;dist" lifehelper.py   
 
 
 Run Whisper-cli.exe

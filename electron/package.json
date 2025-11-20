@@ -1,0 +1,42 @@
+{
+  "name": "lifehelper",
+  "version": "1.0.0",
+  "description": "LifeHelper Desktop App",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.lifehelper.app",
+    "productName": "LifeHelper",
+    "directories": {
+      "output": "../electron-release"
+    },
+    "files": [
+      "**/*",
+      {
+        "from": "../dist/lifehelper",
+        "to": "backend",
+        "filter": ["**/*"]
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "../dist",
+        "to": "backend/dist",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis"]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^39.2.2",
+    "electron-builder": "^26.0.12"  }
+}

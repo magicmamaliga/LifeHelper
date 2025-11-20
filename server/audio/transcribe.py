@@ -27,8 +27,8 @@ def transcribe_segment(segment: np.ndarray):
 
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmpname = tmp.name
-    print("Transcribing segment...")
-    print(  resource_path(WHISPER_CPP_PATH), WHISPER_MODEL, tmpname  )
+    # print("Transcribing segment...")
+    # print(  resource_path(WHISPER_CPP_PATH), WHISPER_MODEL, tmpname  )
     text = transcribe_with_whisper_cpp(
         resource_path(WHISPER_CPP_PATH), resource_path(WHISPER_MODEL), data, tmpname
     )
