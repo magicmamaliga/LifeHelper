@@ -2,22 +2,15 @@ import time
 import threading
 import queue
 import numpy as np
-import signal # NEW: For catching Ctrl+C (SIGINT)
-# NEW IMPORTS FOR WASAPI LOOPBACK
 import pyaudiowpatch as pyaudio 
-# Note: The sounddevice import is removed
 
-# Assuming 'transcribe_segment' is in a sibling module
 from .transcribe import transcribe_segment 
 
-## --- Configuration Update ---
 SAMPLE_RATE = 16000 # Target rate for transcription
 CHUNK_SIZE = 1024   # Buffer size for reading stream data
 
-# PyAudio Configuration (will be updated dynamically)
 _FORMAT = pyaudio.paInt16
 _CHANNELS = 2 
-# ------------------------------
 
 _audio_q = queue.Queue()
 AUDIO_BUFFER = []
@@ -25,29 +18,14 @@ _stop = False
 _LOOPBACK_DEVICE_INDEX = None
 _LOOPBACK_RATE = None 
 
-# PyAudio instance is stored here while the context manager is active
 _pyaudio_instance = None 
 
-# --- Signal Handling ---
-
 def stop_threads():
-    """Sets the global stop flag to terminate all loops."""
     global _stop
     _stop = True
 
-def sigint_handler(signum, frame):
-    """Custom handler to set the global stop flag when SIGINT is received."""
-    print("\nCaught Ctrl+C (SIGINT). Initiating shutdown...")
-    stop_threads()
-
 # --- PyAudioWPatch Device Finding ---
-
 def find_loopback_device(p):
-    """
-    Finds the WASAPI loopback analogue for the default output device.
-    Sets global loopback parameters on success.
-    """
-    print("--- Attempting to find WASAPI Loopback Device ---")
     global _LOOPBACK_DEVICE_INDEX, _LOOPBACK_RATE, _CHANNELS, _pyaudio_instance
     _pyaudio_instance = p 
 
@@ -74,7 +52,6 @@ def find_loopback_device(p):
         return False
 
 # --- Audio Capture and Processing ---
-
 def _put_data_to_queue(indata):
     """Converts raw bytes to mono float32 numpy array and puts it into the queue."""
     global _CHANNELS
@@ -93,9 +70,11 @@ def _put_data_to_queue(indata):
          np_data_float32 = np_data_float32.reshape(-1, 1)
         
     _audio_q.put(np_data_float32)
+    AUDIO_BUFFER.append(np_data_float32)
 
 
 def _capture_loop():
+    print("Capture loop thread started...........................")
     """Blocking capture loop using PyAudio's stream.read()."""
     global _stop, _pyaudio_instance
 
@@ -136,7 +115,7 @@ def _capture_loop():
         if 'stream' in locals() and stream.is_active():
             stream.stop_stream()
             stream.close()
-        print("Capture loop finished.")
+        print("Capture loop finished. ")
 
 
 def _transcribe_worker():
@@ -224,41 +203,29 @@ def start_audio_streamer():
     """
     Initializes PyAudioWPatch, registers the SIGINT handler, and starts threads.
     """
-    # 1. Register the custom handler for SIGINT (Ctrl+C)
-    signal.signal(signal.SIGINT, sigint_handler)
+    global _pyaudio_instance, _stop
     
-    try:
-        # 2. Initialize PyAudioWPatch context manager
-        with pyaudio.PyAudio() as p:
-            
-            # 3. Find and configure the loopback device
-            if not find_loopback_device(p):
-                print("Cannot proceed without a valid loopback device.")
-                return
+    # Reset stop flag on startup
+    _stop = False 
 
-            # 4. Start the worker threads
-            # Daemon threads will automatically be killed when the main thread exits
-            threading.Thread(target=_capture_loop, daemon=True).start()
-            time.sleep(0.5) 
-            threading.Thread(target=_transcribe_worker, daemon=True).start()
-            
-            # 5. Main Thread Loop (stays alive and responsive to signals)
-            print("Audio streamer threads started. Press Ctrl+C to stop.")
-            # The main thread waits here. The SIGINT handler will set _stop=True.
-            while not _stop:
-                time.sleep(0.1) 
-                
+    # 1. Initialize PyAudio (NO 'with' statement)
+    # The PyAudio instance must be manually terminated on shutdown.
+    try:
+        _pyaudio_instance = pyaudio.PyAudio()
     except Exception as e:
-        # Only catches initialization errors outside the PyAudio context
-        print(f"\nFATAL ERROR: Streamer initialization failed.")
-        print(f"Details: {e}")
-        
-    finally:
-        # Ensures all threads are marked for termination and cleanup occurs
-        stop_threads() 
-        # Wait briefly for threads to finish their cleanup
-        time.sleep(0.5) 
-        print("Streamer successfully shut down.")
+        print(f"\nFATAL ERROR: PyAudio initialization failed. Details: {e}")
+        return False
+
+    # 2. Find and configure the loopback device
+    if not find_loopback_device(_pyaudio_instance):
+        print("Cannot proceed without a valid loopback device. Terminating audio.")
+        _pyaudio_instance.terminate() 
+        _pyaudio_instance = None 
+        return False
+    
+    print("Starting audio capture and transcription threads...ooooooooooooomgggg")
+    threading.Thread(target=_capture_loop, daemon=True).start()
+    threading.Thread(target=_transcribe_worker, daemon=True).start()
 
 if __name__ == "__main__":
     start_audio_streamer()
