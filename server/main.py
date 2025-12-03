@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .audio.capture import start_audio_streamer, stop_threads
 from .audio.shutdown import save_transcript_and_audio_on_shutdown
-from .routes import root, live, ask, static
+from .routes import root, live, ask
 from .routes.static import static_root, assets_root
 
 @asynccontextmanager
@@ -45,7 +45,6 @@ app.mount("/assets", StaticFiles(directory=assets_root), name="assets")
 
 # Serve index.html and all static files from root
 app.mount("/", StaticFiles(directory=static_root, html=True), name="root")
-
 
 
 

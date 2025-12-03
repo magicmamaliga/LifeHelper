@@ -3,8 +3,8 @@ import numpy as np
 import tempfile
 from datetime import datetime
 import soundfile as sf
-
-from ..config import SAMPLE_RATE, WHISPER_CPP_PATH, WHISPER_MODEL
+from .. import config as config
+from ..config import  WHISPER_CPP_PATH, WHISPER_MODEL
 from ..utils.whisper_cpp import transcribe_with_whisper_cpp
 from .state import add_to_transcript
 from ..routes.static import resource_path
@@ -21,8 +21,9 @@ def valid_text(text: str) -> bool:
 
 
 def transcribe_segment(segment: np.ndarray):
+    print(f"Transcribing segment... {config.SAMPLE_RATE}")
     wav_buf = io.BytesIO()
-    sf.write(wav_buf, segment, SAMPLE_RATE, format="WAV")
+    sf.write(wav_buf, segment, config.SAMPLE_RATE, format="WAV")
     data = wav_buf.getvalue()
 
     with tempfile.NamedTemporaryFile(delete=False) as tmp:

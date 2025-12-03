@@ -5,9 +5,10 @@ import numpy as np
 import pyaudiowpatch as pyaudio 
 
 from .transcribe import transcribe_segment 
+from .. import config as config 
 
-SAMPLE_RATE = 16000 # Target rate for transcription
-CHUNK_SIZE = 1024   # Buffer size for reading stream data
+
+CHUNK_SIZE = 1024  
 
 _FORMAT = pyaudio.paInt16
 _CHANNELS = 2 
@@ -16,38 +17,35 @@ _audio_q = queue.Queue()
 AUDIO_BUFFER = []
 _stop = False
 _LOOPBACK_DEVICE_INDEX = None
-_LOOPBACK_RATE = None 
 
-_pyaudio_instance = None 
+_pyaudio_instance = pyaudio.PyAudio() 
 
 def stop_threads():
     global _stop
     _stop = True
 
 # --- PyAudioWPatch Device Finding ---
-def find_loopback_device(p):
-    global _LOOPBACK_DEVICE_INDEX, _LOOPBACK_RATE, _CHANNELS, _pyaudio_instance
-    _pyaudio_instance = p 
+def find_loopback_device():
+    global _LOOPBACK_DEVICE_INDEX, _CHANNELS, _pyaudio_instance
 
     try:
-        default_device_index = p.get_default_output_device_info()['index']
+        default_device_index = _pyaudio_instance.get_default_output_device_info()['index']
     except Exception as e:
         print(f"Error: Could not determine default output device. ({e})")
         return False
 
     try:
-        loopback_info = p.get_wasapi_loopback_analogue_by_index(default_device_index)
+        loopback_info = _pyaudio_instance.get_wasapi_loopback_analogue_by_index(default_device_index)
         
         _LOOPBACK_DEVICE_INDEX = loopback_info['index']
-        _LOOPBACK_RATE = int(loopback_info.get('defaultSampleRate', SAMPLE_RATE)) 
+        config.SAMPLE_RATE = int(loopback_info.get('defaultSampleRate', config.SAMPLE_RATE)) 
         _CHANNELS = loopback_info.get('maxInputChannels', _CHANNELS)
         
         print(f"✅ Found Loopback Device (Index: {_LOOPBACK_DEVICE_INDEX}): {loopback_info['name']}")
-        print(f"   Native Rate: {_LOOPBACK_RATE} Hz, Channels: {_CHANNELS}")
+        print(f"   Native Rate: {config.SAMPLE_RATE} Hz, Channels: {_CHANNELS}")
         return True
         
     except Exception as e:
-        print("❌ Failed to find the WASAPI Loopback Analogue. Check PyAudioWPatch installation.")
         print(f"Error details: {e}")
         return False
 
@@ -82,12 +80,12 @@ def _capture_loop():
         print("Error: Loopback device not initialized. Stopping capture loop.")
         return
 
-    print(f"Starting capture stream at {_LOOPBACK_RATE}Hz...")
+    print(f"Starting capture stream at {config.SAMPLE_RATE}Hz...")
 
     try:
         stream = _pyaudio_instance.open(format=_FORMAT,
                                         channels=_CHANNELS,
-                                        rate=_LOOPBACK_RATE,
+                                        rate=config.SAMPLE_RATE,
                                         input=True,
                                         frames_per_buffer=CHUNK_SIZE,
                                         input_device_index=_LOOPBACK_DEVICE_INDEX)
@@ -122,31 +120,25 @@ def _transcribe_worker():
     global _stop
     buffer = np.zeros((0, 1), dtype=np.float32)
     
-    # --- Resampling Setup ---
-    # This must be calculated after the loopback rate is found
-    if _LOOPBACK_RATE and _LOOPBACK_RATE != SAMPLE_RATE:
-        resample_ratio = _LOOPBACK_RATE / SAMPLE_RATE
-    else:
-        resample_ratio = 1.0
-    # ------------------------
+    resample_ratio = 1.0
 
     # silence detection
     silence_threshold = 0.005
-    silence_window = int(SAMPLE_RATE * 0.2)
+    silence_window = int(config.SAMPLE_RATE * 0.2)
     silence_required = 0.8
     silence_limit = int(silence_required / 0.2)
     silence_counter = 0
     speech_detected = False
 
-    max_samples = SAMPLE_RATE * 7
+    max_samples = config.SAMPLE_RATE * 7
     min_sentence_length = 1.8
     
-    print(f"Transcription worker running. Target sample rate: {SAMPLE_RATE} Hz")
+    print(f"Transcription worker running. Target sample rate: {config.SAMPLE_RATE} Hz")
 
 
     while not _stop:
         try:
-            # Data pulled from queue is a (N, 1) float32 array at _LOOPBACK_RATE
+            # Data pulled from queue is a (N, 1) float32 array at config.SAMPLE_RATE
             data = _audio_q.get(timeout=1)
             
             # ** CRITICAL: RESAMPLE THE DATA **
@@ -157,7 +149,7 @@ def _transcribe_worker():
                  if downsample_factor > 1:
                     data = data[::downsample_factor]
             
-            # The rest of the logic assumes 'data' is now at SAMPLE_RATE
+            # The rest of the logic assumes 'data' is now at config.SAMPLE_RATE
             buffer = np.concatenate((buffer, data))
 
             if len(buffer) >= silence_window:
@@ -171,7 +163,7 @@ def _transcribe_worker():
                     if speech_detected:
                         silence_counter += 1
 
-                total_duration = len(buffer) / SAMPLE_RATE
+                total_duration = len(buffer) / config.SAMPLE_RATE
 
                 # finalize segment
                 if speech_detected and silence_counter >= silence_limit and total_duration >= min_sentence_length:
@@ -205,11 +197,7 @@ def start_audio_streamer():
     """
     global _pyaudio_instance, _stop
     
-    # Reset stop flag on startup
-    _stop = False 
-
-    # 1. Initialize PyAudio (NO 'with' statement)
-    # The PyAudio instance must be manually terminated on shutdown.
+    _stop = False
     try:
         _pyaudio_instance = pyaudio.PyAudio()
     except Exception as e:
@@ -217,15 +205,11 @@ def start_audio_streamer():
         return False
 
     # 2. Find and configure the loopback device
-    if not find_loopback_device(_pyaudio_instance):
+    if not find_loopback_device():
         print("Cannot proceed without a valid loopback device. Terminating audio.")
         _pyaudio_instance.terminate() 
         _pyaudio_instance = None 
         return False
     
-    print("Starting audio capture and transcription threads...ooooooooooooomgggg")
     threading.Thread(target=_capture_loop, daemon=True).start()
     threading.Thread(target=_transcribe_worker, daemon=True).start()
-
-if __name__ == "__main__":
-    start_audio_streamer()

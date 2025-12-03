@@ -6,10 +6,12 @@ from scipy.io.wavfile import write as write_wav
 
 from .capture import AUDIO_BUFFER
 from .state import get_live_transcript
-from ..config import SAMPLE_RATE, TRANSCRIPTS_DIR
+from ..config import TRANSCRIPTS_DIR
+from .. import config as config
 
 
 def save_transcript_and_audio_on_shutdown():
+    print(f"Saving transcript and audio on shutdown... {config.SAMPLE_RATE}")
     transcript = get_live_transcript()
     if not transcript and not AUDIO_BUFFER:
         return
@@ -25,5 +27,5 @@ def save_transcript_and_audio_on_shutdown():
 
     if AUDIO_BUFFER:
         audio = np.concatenate(AUDIO_BUFFER, axis=0)
-        write_wav(base + ".wav", SAMPLE_RATE, audio)
+        write_wav(base + ".wav", config.SAMPLE_RATE, audio)
         print(f"🎧 Audio saved to {base}.wav")
