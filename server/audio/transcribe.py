@@ -1,24 +1,14 @@
 import io
 import numpy as np
 import tempfile
-from datetime import datetime
 import soundfile as sf
+
+from datetime import datetime
 from .. import config as config
 from ..config import  WHISPER_CPP_PATH, WHISPER_MODEL
 from ..utils.whisper_cpp import transcribe_with_whisper_cpp
-from .state import add_to_transcript
+from ..utils.state import add_to_transcript
 from ..routes.static import resource_path
-
-def valid_text(text: str) -> bool:
-    if not text:
-        return False
-    t = text.strip().lower()
-    if t in ("[blank_audio]", "[blank]", "(silence)", "[ silence ]"):
-        return False
-    if t in ("you", "uh", "ah", "a", "hmm"):
-        return False
-    return True
-
 
 def transcribe_segment(segment: np.ndarray):
     print(f"Transcribing segment... {config.SAMPLE_RATE}")
@@ -40,3 +30,14 @@ def transcribe_segment(segment: np.ndarray):
     ts = datetime.now().isoformat(timespec="seconds")
     add_to_transcript({"timestamp": ts, "text": text})
     print(f"[{ts}] {text}")
+
+
+def valid_text(text: str) -> bool:
+    if not text:
+        return False
+    t = text.strip().lower()
+    if t in ("[blank_audio]", "[blank]", "(silence)", "[ silence ]"):
+        return False
+    if t in ("you", "uh", "ah", "a", "hmm"):
+        return False
+    return True

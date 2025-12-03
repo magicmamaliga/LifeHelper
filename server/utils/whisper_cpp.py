@@ -1,14 +1,6 @@
 import os
 import subprocess
 
-def cleanup_temp_files(*paths):
-    for path in paths:
-        try:
-            if os.path.exists(path):
-                os.remove(path)
-        except OSError:
-            pass
-
 
 def transcribe_with_whisper_cpp(binary, model, audio_data, tmp):
     tmp_wav = tmp + ".wav"
@@ -43,3 +35,11 @@ def transcribe_with_whisper_cpp(binary, model, audio_data, tmp):
 
     cleanup_temp_files(tmp_wav, txt_path)
     return text
+
+def cleanup_temp_files(*paths):
+    for path in paths:
+        try:
+            if os.path.exists(path):
+                os.remove(path)
+        except OSError:
+            pass

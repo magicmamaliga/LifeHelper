@@ -8,9 +8,8 @@ from .transcribe import transcribe_segment
 from .. import config as config 
 
 
-CHUNK_SIZE = 1024  
 
-_FORMAT = pyaudio.paInt16
+
 _CHANNELS = 2 
 
 _audio_q = queue.Queue()
@@ -75,6 +74,7 @@ def _capture_loop():
     print("Capture loop thread started...........................")
     """Blocking capture loop using PyAudio's stream.read()."""
     global _stop, _pyaudio_instance
+    chunkSize = 1024  
 
     if not _LOOPBACK_DEVICE_INDEX or not _pyaudio_instance:
         print("Error: Loopback device not initialized. Stopping capture loop.")
@@ -83,17 +83,17 @@ def _capture_loop():
     print(f"Starting capture stream at {config.SAMPLE_RATE}Hz...")
 
     try:
-        stream = _pyaudio_instance.open(format=_FORMAT,
+        stream = _pyaudio_instance.open(format= pyaudio.paInt16,
                                         channels=_CHANNELS,
                                         rate=config.SAMPLE_RATE,
                                         input=True,
-                                        frames_per_buffer=CHUNK_SIZE,
+                                        frames_per_buffer=chunkSize,
                                         input_device_index=_LOOPBACK_DEVICE_INDEX)
 
         while not _stop:
             try:
                 # This is a blocking read call
-                data = stream.read(CHUNK_SIZE, exception_on_overflow=False) 
+                data = stream.read(chunkSize, exception_on_overflow=False) 
                 _put_data_to_queue(data)
                 
             except IOError as e:

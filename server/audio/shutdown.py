@@ -5,7 +5,7 @@ from datetime import datetime
 from scipy.io.wavfile import write as write_wav
 
 from .capture import AUDIO_BUFFER
-from .state import get_live_transcript
+from ..utils.state import get_live_transcript
 from ..config import TRANSCRIPTS_DIR
 from .. import config as config
 
@@ -18,6 +18,8 @@ def save_transcript_and_audio_on_shutdown():
 
     timestamp = datetime.now().isoformat(timespec='seconds').replace(":", "-")
     base = os.path.join(TRANSCRIPTS_DIR, f"session_{timestamp}")
+
+    os.makedirs(TRANSCRIPTS_DIR, exist_ok=True)
 
     # save transcript
     if transcript:

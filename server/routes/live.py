@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from urllib.parse import unquote
 from datetime import datetime
 
-from ..audio.state import get_live_transcript
+from ..utils.state import get_live_transcript
 
 router = APIRouter(prefix="/api")
 
