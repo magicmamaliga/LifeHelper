@@ -6,52 +6,16 @@ import pyaudiowpatch as pyaudio
 
 from .transcribe import transcribe_segment 
 from .. import config as config 
+from ..audio import thread_starter as thread_starter
 
-
-
-
-_CHANNELS = 2 
 
 _audio_q = queue.Queue()
 AUDIO_BUFFER = []
-_stop = False
-_LOOPBACK_DEVICE_INDEX = None
 
-_pyaudio_instance = pyaudio.PyAudio() 
-
-def stop_threads():
-    global _stop
-    _stop = True
-
-# --- PyAudioWPatch Device Finding ---
-def find_loopback_device():
-    global _LOOPBACK_DEVICE_INDEX, _CHANNELS, _pyaudio_instance
-
-    try:
-        default_device_index = _pyaudio_instance.get_default_output_device_info()['index']
-    except Exception as e:
-        print(f"Error: Could not determine default output device. ({e})")
-        return False
-
-    try:
-        loopback_info = _pyaudio_instance.get_wasapi_loopback_analogue_by_index(default_device_index)
-        
-        _LOOPBACK_DEVICE_INDEX = loopback_info['index']
-        config.SAMPLE_RATE = int(loopback_info.get('defaultSampleRate', config.SAMPLE_RATE)) 
-        _CHANNELS = loopback_info.get('maxInputChannels', _CHANNELS)
-        
-        print(f"✅ Found Loopback Device (Index: {_LOOPBACK_DEVICE_INDEX}): {loopback_info['name']}")
-        print(f"   Native Rate: {config.SAMPLE_RATE} Hz, Channels: {_CHANNELS}")
-        return True
-        
-    except Exception as e:
-        print(f"Error details: {e}")
-        return False
 
 # --- Audio Capture and Processing ---
 def _put_data_to_queue(indata):
     """Converts raw bytes to mono float32 numpy array and puts it into the queue."""
-    global _CHANNELS
     
     # 1. Convert raw bytes (paInt16) to numpy int16 array
     np_data_int16 = np.frombuffer(indata, dtype=np.int16)
@@ -60,10 +24,10 @@ def _put_data_to_queue(indata):
     np_data_float32 = np_data_int16.astype(np.float32) / 32768.0 
     
     # 3. Handle Stereo -> Mono (Mean across channels)
-    if _CHANNELS > 1:
-        # Reshape to (M, _CHANNELS) and take the mean across channels (axis=1)
-        np_data_float32 = np_data_float32.reshape(-1, _CHANNELS).mean(axis=1, keepdims=True)
-    elif _CHANNELS == 1:
+    if thread_starter._CHANNELS > 1:
+        # Reshape to (M, thread_starter._CHANNELS) and take the mean across channels (axis=1)
+        np_data_float32 = np_data_float32.reshape(-1, thread_starter._CHANNELS).mean(axis=1, keepdims=True)
+    elif thread_starter._CHANNELS == 1:
          np_data_float32 = np_data_float32.reshape(-1, 1)
         
     _audio_q.put(np_data_float32)
@@ -73,24 +37,24 @@ def _put_data_to_queue(indata):
 def _capture_loop():
     print("Capture loop thread started...........................")
     """Blocking capture loop using PyAudio's stream.read()."""
-    global _stop, _pyaudio_instance
+    
     chunkSize = 1024  
 
-    if not _LOOPBACK_DEVICE_INDEX or not _pyaudio_instance:
+    if not thread_starter._LOOPBACK_DEVICE_INDEX or not thread_starter._pyaudio_instance:
         print("Error: Loopback device not initialized. Stopping capture loop.")
         return
 
     print(f"Starting capture stream at {config.SAMPLE_RATE}Hz...")
 
     try:
-        stream = _pyaudio_instance.open(format= pyaudio.paInt16,
-                                        channels=_CHANNELS,
+        stream = thread_starter._pyaudio_instance.open(format= pyaudio.paInt16,
+                                        channels=thread_starter._CHANNELS,
                                         rate=config.SAMPLE_RATE,
                                         input=True,
                                         frames_per_buffer=chunkSize,
-                                        input_device_index=_LOOPBACK_DEVICE_INDEX)
+                                        input_device_index=thread_starter._LOOPBACK_DEVICE_INDEX)
 
-        while not _stop:
+        while not thread_starter._stop:
             try:
                 # This is a blocking read call
                 data = stream.read(chunkSize, exception_on_overflow=False) 
@@ -117,7 +81,6 @@ def _capture_loop():
 
 
 def _transcribe_worker():
-    global _stop
     buffer = np.zeros((0, 1), dtype=np.float32)
     
     resample_ratio = 1.0
@@ -135,8 +98,7 @@ def _transcribe_worker():
     
     print(f"Transcription worker running. Target sample rate: {config.SAMPLE_RATE} Hz")
 
-
-    while not _stop:
+    while not thread_starter._stop:
         try:
             # Data pulled from queue is a (N, 1) float32 array at config.SAMPLE_RATE
             data = _audio_q.get(timeout=1)
@@ -186,30 +148,8 @@ def _transcribe_worker():
         except queue.Empty:
             time.sleep(0.05)
         except Exception as e:
-            if not _stop:
+            if not thread_starter._stop:
                 print(f"Error in transcribe worker: {e}")
             break
             
 
-def start_audio_streamer():
-    """
-    Initializes PyAudioWPatch, registers the SIGINT handler, and starts threads.
-    """
-    global _pyaudio_instance, _stop
-    
-    _stop = False
-    try:
-        _pyaudio_instance = pyaudio.PyAudio()
-    except Exception as e:
-        print(f"\nFATAL ERROR: PyAudio initialization failed. Details: {e}")
-        return False
-
-    # 2. Find and configure the loopback device
-    if not find_loopback_device():
-        print("Cannot proceed without a valid loopback device. Terminating audio.")
-        _pyaudio_instance.terminate() 
-        _pyaudio_instance = None 
-        return False
-    
-    threading.Thread(target=_capture_loop, daemon=True).start()
-    threading.Thread(target=_transcribe_worker, daemon=True).start()

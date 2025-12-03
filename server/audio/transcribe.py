@@ -11,15 +11,12 @@ from ..utils.state import add_to_transcript
 from ..routes.static import resource_path
 
 def transcribe_segment(segment: np.ndarray):
-    print(f"Transcribing segment... {config.SAMPLE_RATE}")
     wav_buf = io.BytesIO()
     sf.write(wav_buf, segment, config.SAMPLE_RATE, format="WAV")
     data = wav_buf.getvalue()
 
     with tempfile.NamedTemporaryFile(delete=False) as tmp:
         tmpname = tmp.name
-    # print("Transcribing segment...")
-    # print(  resource_path(WHISPER_CPP_PATH), WHISPER_MODEL, tmpname  )
     text = transcribe_with_whisper_cpp(
         resource_path(WHISPER_CPP_PATH), resource_path(WHISPER_MODEL), data, tmpname
     )

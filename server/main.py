@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .audio.capture import start_audio_streamer, stop_threads
+from .audio.thread_starter import start_audio_streamer, stop_threads
 from .audio.shutdown import save_transcript_and_audio_on_shutdown
 from .routes import root, live, ask
 from .routes.static import static_root, assets_root
