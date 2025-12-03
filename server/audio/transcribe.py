@@ -3,7 +3,6 @@ import numpy as np
 import tempfile
 import soundfile as sf
 import time
-import threading
 import queue
 
 from datetime import datetime

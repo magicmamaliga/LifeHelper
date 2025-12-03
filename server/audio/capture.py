@@ -1,6 +1,3 @@
-import time
-import threading
-import queue
 import numpy as np
 import pyaudiowpatch as pyaudio 
 
@@ -9,30 +6,7 @@ from .. import config as config
 from ..audio import thread_starter as thread_starter
 
 
-
 AUDIO_BUFFER = []
-
-
-# --- Audio Capture and Processing ---
-def _put_data_to_queue(indata):
-    """Converts raw bytes to mono float32 numpy array and puts it into the queue."""
-    
-    # 1. Convert raw bytes (paInt16) to numpy int16 array
-    np_data_int16 = np.frombuffer(indata, dtype=np.int16)
-    
-    # 2. Convert to float32 (-1.0 to 1.0)
-    np_data_float32 = np_data_int16.astype(np.float32) / 32768.0 
-    
-    # 3. Handle Stereo -> Mono (Mean across channels)
-    if thread_starter._CHANNELS > 1:
-        # Reshape to (M, thread_starter._CHANNELS) and take the mean across channels (axis=1)
-        np_data_float32 = np_data_float32.reshape(-1, thread_starter._CHANNELS).mean(axis=1, keepdims=True)
-    elif thread_starter._CHANNELS == 1:
-         np_data_float32 = np_data_float32.reshape(-1, 1)
-        
-    thread_starter.audio_q.put(np_data_float32)
-    AUDIO_BUFFER.append(np_data_float32)
-
 
 def capture_loop():
     chunkSize = 1024  
@@ -74,5 +48,22 @@ def capture_loop():
             stream.close()
         print("Capture loop finished. ")
 
-
+def _put_data_to_queue(indata):
+    """Converts raw bytes to mono float32 numpy array and puts it into the queue."""
+    
+    # 1. Convert raw bytes (paInt16) to numpy int16 array
+    np_data_int16 = np.frombuffer(indata, dtype=np.int16)
+    
+    # 2. Convert to float32 (-1.0 to 1.0)
+    np_data_float32 = np_data_int16.astype(np.float32) / 32768.0 
+    
+    # 3. Handle Stereo -> Mono (Mean across channels)
+    if thread_starter._CHANNELS > 1:
+        # Reshape to (M, thread_starter._CHANNELS) and take the mean across channels (axis=1)
+        np_data_float32 = np_data_float32.reshape(-1, thread_starter._CHANNELS).mean(axis=1, keepdims=True)
+    elif thread_starter._CHANNELS == 1:
+         np_data_float32 = np_data_float32.reshape(-1, 1)
+        
+    thread_starter.audio_q.put(np_data_float32)
+    AUDIO_BUFFER.append(np_data_float32)
 

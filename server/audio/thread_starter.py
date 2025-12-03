@@ -27,7 +27,7 @@ def start_audio_streamer():
         return False
 
     # 2. Find and configure the loopback device
-    if not find_loopback_device():
+    if not _find_loopback_device():
         print("Cannot proceed without a valid loopback device. Terminating audio.")
         _pyaudio_instance.terminate() 
         _pyaudio_instance = None 
@@ -38,13 +38,12 @@ def start_audio_streamer():
 
 
 
-
 def stop_threads():
     global _stop
     _stop = True
 
 # --- PyAudioWPatch Device Finding ---
-def find_loopback_device():
+def _find_loopback_device():
     global _LOOPBACK_DEVICE_INDEX, _CHANNELS, _pyaudio_instance
 
     try:

@@ -1,9 +1,5 @@
 import sys
 import os
-from fastapi import APIRouter
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-
 from ..config import STATIC_DIR
 
 
@@ -18,7 +14,6 @@ def resource_path(relative_path):
         # <-- IMPORTANT FIX: use project root, not the folder of this file
         base_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../"))
     return os.path.normpath(os.path.join(base_path, relative_path))
-
 
 # Absolute static folder path
 static_root = resource_path(STATIC_DIR)

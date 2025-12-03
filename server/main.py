@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     stop_threads()
     time.sleep(1.5)
     save_transcript_and_audio_on_shutdown()
-    print("👋 FastAPI shutdown complete.")
+    print("FastAPI shutdown complete.")
 
 app = FastAPI(lifespan=lifespan)
 
