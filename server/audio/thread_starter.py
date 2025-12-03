@@ -4,12 +4,14 @@ import queue
 import pyaudiowpatch as pyaudio 
 
 from .. import config as config 
-from .capture import _capture_loop, _transcribe_worker
+from .capture import capture_loop
+from .transcribe import transcribe_worker
 
 _stop = False
 _pyaudio_instance = pyaudio.PyAudio() 
 _CHANNELS = 2
 _LOOPBACK_DEVICE_INDEX = None
+audio_q = queue.Queue()
 
 def start_audio_streamer():
     """
@@ -31,8 +33,10 @@ def start_audio_streamer():
         _pyaudio_instance = None 
         return False
     
-    threading.Thread(target=_capture_loop, daemon=True).start()
-    threading.Thread(target=_transcribe_worker, daemon=True).start()
+    threading.Thread(target=capture_loop, daemon=True).start()
+    threading.Thread(target=transcribe_worker, daemon=True).start()
+
+
 
 
 def stop_threads():
@@ -56,8 +60,7 @@ def find_loopback_device():
         config.SAMPLE_RATE = int(loopback_info.get('defaultSampleRate', config.SAMPLE_RATE)) 
         _CHANNELS = loopback_info.get('maxInputChannels', _CHANNELS)
         
-        print(f"✅ Found Loopback Device (Index: {_LOOPBACK_DEVICE_INDEX}): {loopback_info['name']}")
-        print(f"   Native Rate: {config.SAMPLE_RATE} Hz, Channels: {_CHANNELS}")
+        print(f"✅ Found Loopback Device (Index: {_LOOPBACK_DEVICE_INDEX}): {loopback_info['name']}, Native Rate: {config.SAMPLE_RATE} Hz, Channels: {_CHANNELS}")
         return True
         
     except Exception as e:
