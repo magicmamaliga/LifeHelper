@@ -27,7 +27,6 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -45,9 +44,6 @@ app.mount("/assets", StaticFiles(directory=assets_root), name="assets")
 
 # Serve index.html and all static files from root
 app.mount("/", StaticFiles(directory=static_root, html=True), name="root")
-
-
-
 
 # --- CATCH-ALL ROUTE FOR REACT ---
 @app.get("/{full_path:path}")
